@@ -1,0 +1,296 @@
+<?php
+
+/**
+ * @file
+ * creation des tables dans la base de dpnn�es lors de l'activation du module
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function commercegimuemoa_schema() {
+	$schema = array();
+	
+  
+   
+	// creation de la table E-commer�ant
+	
+  $schema['ecommercant'] = array(
+    
+    // les attributs de la table E-commer�ant
+    'description' => 'la table de lE-commercant.',
+    'fields' => array(
+      
+      'ecommercantID' => array(
+        'description' => 'lidentifiant du commer�ant.',
+        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+      'ecommercantFirstLastName' => array(
+        'description' => 'Nom et Prenom du commer�ant.',
+        'type' => 'varchar',
+		 'length' => 100,
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+      'ecommercantNumTel' => array(
+        'description' => 'le num�ro Tel du commer�ant.',
+        'type' => 'int',
+        'length' => 32,
+//        'not null' => TRUE,
+//        'default' => ''
+      ),
+    ),
+//    'indexes' => array(
+//      'ecommercant_changed' => array('changed'),
+//      'ecommercant_created' => array('created')
+//    ),
+//    'unique keys' => array(
+//      //'nid_vid' => array('nid', 'vid'),
+//      'ecommercantNumTel' => array('ecommercantNumTel')
+//    ),
+//   
+    
+    'primary key' => array('ecommercantID')
+  );
+  
+  // creation de la table Acheteur
+  
+  $schema['acheteur'] = array(
+    // les attributs de la table Acheteur
+    'description' => 'la table de lAcheteur.',
+    'fields' => array(
+      
+      'acheteurID' => array(
+        'description' => 'lidentifiant de lAcheteur.',
+        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+      'acheteurFirstLastName' => array(
+        'description' => 'Nom et Prenom de lAcheteur.',
+        'type' => 'varchar',
+		 'length' => 100,
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+      'acheteurNumTel' => array(
+        'description' => 'le num�ro Tel de lAcheteur.',
+        'type' => 'int',
+        'length' => 32,
+//        'not null' => TRUE,
+//        'default' => ''
+      ),
+	  
+	   'acheteurAdress' => array(
+        'description' => 'le num�ro Tel de lAcheteur.',
+        'type' => 'varchar',
+        'length' => 50,
+//        'not null' => TRUE,
+//        'default' => ''
+      ),
+    ),
+//    'indexes' => array(
+//      'acheteur_changed' => array('changed'),
+//      'acheteur_created' => array('created')
+//    ),
+//    'unique keys' => array(
+//      //'nid_vid' => array('nid', 'vid'),
+//      'acheteurNumTel' => array('acheteurNumTel')
+//    ),
+  
+    'primary key' => array('acheteurID')
+  );
+  
+  
+  
+  // cr�ation de la table configuration
+  
+  $schema['gimuemoa_config'] = array(
+    // les attributs de la table configuration
+    'description' => 'la table de la configuration.',
+    'fields' => array(
+      
+      'gimSID' => array(
+        'description' => 'lidentifiant du site a configurer.',
+        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+      'gimCert' => array(
+        'description' => 'le certificat du site.',
+        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+        
+      ),
+     
+    ),
+//    'indexes' => array(
+//      'gimuemoa_config_changed' => array('changed'),
+//      'gimuemoa_config_created' => array('created')
+//    ),
+//    'unique keys' => array(
+//      'gimSID' => array('gimSID'),
+//      'gimCert' => array('gimCert')
+//    ),
+//	
+   'foreign keys' => array(
+      'gimEcommercantID' => array(
+        'table' => 'ecommercant',
+        'columns' => array('ecommercantID' => 'ecommercantID')
+      ),
+     ),
+    
+    'primary key' => array('gimSID')
+  );
+  
+  
+  // cr�ation de la table Panier
+  
+  $schema['carts'] = array(
+    // les attributs de la table Panier
+    'description' => 'la table Panier.',
+    'fields' => array(
+      
+      'cartNumber' => array(
+        'description' => 'le numero du panier.',
+        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+    ),
+//    'indexes' => array(
+//      'carts_changed' => array('changed'),
+//      'carts_created' => array('created')
+//    ),
+//    
+   
+    
+    'primary key' => array('cartNumber')
+  );
+  
+   // cr�ation de la table de Transaction
+   $schema['gimuemoa_transactions'] = array(
+    // les attributs de la table transaction
+    'description' => 'la table de la transaction.',
+    'fields' => array(
+      
+      'trxNum' => array(
+        'description' => 'le numero de la transaction.',
+        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+      'trxAmount' => array(
+        'description' => 'le montant de la transaction.',
+        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+	 'trxNumberCarte' => array(
+        'description' => 'le numero de la carte de la transaction.',
+        'type' => 'int',
+		//'length' => 16,
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+	  'trxDate' => array(
+        'description' => 'la date  et lheure de la transaction.',
+        'type' => 'text',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+      'trxToken' => array(
+        'description' => 'le jeton recu apres le traitement de la transaction.',
+        'type' => 'varchar',
+		    'length' => 100,
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+	  'trxStatut' => array(
+        'description' => 'le statut de la transaction.',
+        'type' => 'varchar',
+		    'length' => 50,
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+      
+	   'trxLogs' => array(
+        'description' => 'la notification du Systeme vers les autres modules.',
+        'type' => 'varchar',
+		    'length' => 150,
+//        'unsigned' => TRUE,
+//        'not null' => TRUE
+      ),
+     
+    ),
+//    'indexes' => array(
+//      'gimuemoa_transactions_changed' => array('changed'),
+//      'gimuemoa_transactions_created' => array('created'),
+//    ),
+//    'unique keys' => array(
+//      
+//      'trxNumberCarte' => array('trxNumberCarte')
+//    ),
+   
+   
+   'foreign keys' => array(
+      'trxacheteurID' => array(
+        'table' => 'acheteur',
+        'columns' => array('acheteurID' => 'acheteurID')
+      ),
+     'trxCartNumber' => array(
+        'table' => 'carts',
+        'columns' => array('cartNumber' => 'cartNumber'),
+      ),
+	
+	 ),
+    
+  
+    'primary key' => array('trxNum'),
+  );
+  
+
+  
+  return $schema;
+}
+
+//function commercegimuemoa_install() {
+//  // Création de mes tables
+//  //drupal_install_schema('commercegimuemoa');
+//  drupal_install_schema('ecommercant');
+//  drupal_install_schema('acheteur');
+//  drupal_install_schema('gimuemoa_config');
+//  drupal_install_schema('carts');
+//  drupal_install_schema('gimuemoa_transactions');
+//  
+//}
+
+function commercegimuemoa_uninstall() {
+  // Suppression de mes tables.
+// drupal_uninstall_schema('commercegimuemoa');
+  drupal_uninstall_schema('ecommercant');
+  drupal_uninstall_schema('acheteur');
+  drupal_uninstall_schema('gimuemoa_config');
+  drupal_uninstall_schema('carts');
+  drupal_uninstall_schema('gimuemoa_transactions');
+//}
+
+//function token_update_1() {
+//  $ret = array();
+//  $ret[] = update_sql("UPDATE {system} SET weight = 10 WHERE name = 'token'");
+//  return $ret;
+}
+?>

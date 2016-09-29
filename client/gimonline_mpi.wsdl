@@ -1,0 +1,144 @@
+<?xml version="1.0"?>
+<!-- partie 1 : Definitions -->
+<definitions      name="TRACOM" 
+              targetNamespace="urn:TRACOM" 
+              xmlns:typens="urn:TRACOM" 
+              xmlns:xsd="http://www.w3.org/2001/XMLSchema" 
+              xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" 
+              xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" 
+              xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" 
+              xmlns="http://schemas.xmlsoap.org/wsdl/">
+ 
+        <!-- partie 2 : Types-->
+<types>
+        <xsd:schema       xmlns="http://www.w3.org/2001/XMLSchema" 
+                      targetNamespace="urn:TRACOM">
+        </xsd:schema>
+ </types> 
+ 
+ 
+				<!-- partie 3 : Message -->
+				<!-- *****************************getHello************************* -->
+								 <!--  <message name="getHelloRequest">
+										   <part name="prenom" type="xsd:string"/>
+										   <part name="nom" type="xsd:string"/>
+								  </message>
+								  <message name="getHelloResponse">
+										   <part name="return" type="xsd:string"/>
+								  </message>  -->
+								  
+				<!-- *****************************getMPIFunction************************* -->
+								  <message name="getMPIFunctionRequest">
+										   <part name="gol_site_id" type="xsd:string"/>
+										   <part name="gol_amount" type="xsd:string"/>
+										   <part name="gol_currency" type="xsd:string"/>
+										   <part name="gol_NumerosPanier" type="xsd:string"/>
+										   <part name="gol_ctx_mode" type="xsd:string"/>
+										   <part name="gol_page_action" type="xsd:string"/>
+										   <part name="gol_trans_date" type="xsd:string"/>
+										   <part name="gol_Signature" type="xsd:string"/>
+								  </message>
+								  <message name="getMPIFunctionResponse">
+										   <part name="return" type="xsd:string"/>
+								  </message>	
+								  
+				<!-- *****************************makePaymentFunction************************* -->
+								  <message name="makePaymentRequest">
+										   <part name="gol_site_id" type="xsd:string"/>
+										   <part name="gol_amount" type="xsd:string"/>
+										   <part name="gol_currency" type="xsd:string"/>
+										   <part name="gol_NumerosPanier" type="xsd:string"/>
+										   <part name="gol_ctx_mode" type="xsd:string"/>
+										   <part name="gol_page_action" type="xsd:string"/>
+										   <part name="gol_trans_date" type="xsd:string"/>
+										   <part name="gol_Signature" type="xsd:string"/>
+								  </message>
+								  <message name="makePaymentResponse">
+										   <part name="return" type="xsd:string"/>
+								  </message>					  
+								  
+        <!-- partie 4 : Port Type -->
+								<portType name="TRACOMPort">
+										<!-- partie 5 : Operation -->
+										<!-- *****************************getHello************************* -->
+										<!-- <operation name="getHello">
+												<input message="typens:getHelloRequest"/>
+												<output message="typens:getHelloResponse"/>
+										</operation> -->
+										
+										<!-- *****************************getMPIFunction************************* -->
+										<operation name="getMPIFunction">
+												<input message="typens:getMPIFunctionRequest"/>
+												<output message="typens:getMPIFunctionResponse"/>
+										</operation>	
+										
+										<!-- *****************************makePaymentFunction************************* -->
+										<operation name="makePaymentFunction">
+												<input message="typens:makePaymentRequest"/>
+												<output message="typens:makePaymentResponse"/>
+										</operation>
+										
+								</portType>
+						 
+								<!-- partie 6 : Binding -->
+								<binding name="TRACOMBinding" type="typens:TRACOMPort">
+										<soap:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+										<!-- *****************************getHello************************* -->
+										<!-- <operation name="getHello">
+												<soap:operation soapAction="TRACOMAction"/>
+													<input name="getHelloRequest">
+														<soap:body    use="encoded"       
+																	  namespace="urn:TRACOM"    
+																	  encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/>
+													</input>
+													<output name="getHelloResponse">
+														<soap:body    use="encoded"       
+																	  namespace="urn:TRACOM" 
+																	  encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/>
+													</output>
+										</operation>	 -->
+
+										<!-- *****************************getMPIFunction************************* -->
+										<operation name="getMPIFunction">
+												<soap:operation soapAction="TRACOMAction"/>
+													<input name="getMPIFunctionRequest">
+														<soap:body    use="encoded"       
+																	  namespace="urn:TRACOM"    
+																	  encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/>
+													</input>
+													<output name="getMPIFunctionResponse">
+														<soap:body    use="encoded"       
+																	  namespace="urn:TRACOM" 
+																	  encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/>
+													</output>
+										</operation>				
+										
+										<!-- *****************************makePaymentFunction************************* -->
+										<operation name="makePaymentFunction">
+												<soap:operation soapAction="TRACOMAction"/>
+													<input name="makePaymentRequest">
+														<soap:body    use="encoded"       
+																	  namespace="urn:TRACOM"    
+																	  encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/>
+													</input>
+													<output name="makePaymentResponse">
+														<soap:body    use="encoded"       
+																	  namespace="urn:TRACOM" 
+																	  encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/>
+													</output>
+										</operation>				
+										
+										
+									    
+								</binding>
+ 
+        <!-- partie 7 : Service -->
+        <service name="TRACOMService">
+                <documentation>Retourne une phrase simple </documentation>
+                <!-- partie 8 : Port -->
+                <port name="TRACOMPort" binding="typens:TRACOMBinding">		
+                        <!-- <soap:address location="http://monDns:monPort/monChemin/server.php"/> --> <!-- modifier ce chemin vers server.php -->
+						<soap:address location="http://localhost/gimonline/server/gimonlineserver.php"/>
+                </port>
+        </service>
+</definitions>

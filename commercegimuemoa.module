@@ -1,0 +1,660 @@
+<?php
+
+/**
+ * @file
+ * Mise en place d'un module de paiement GIM-UEMOA sur Drupal commerce.
+ */
+// creation de la methode  de paiement avec carte GIM-UEMOA
+function commercegimuemoa_commerce_payment_method_info() {
+
+  $payment_methods['commercegimuemoa'] = array(
+    'base' => 'commercegimuemoa',
+    'title' => t('COMMERCE_GIM-UEMOA'),
+    'short_title' => t('GIM-UEMOA'),
+    'display_title' => t('Commerce GIM-UEMOA'),
+    'description' => t('commercegimuemoa module de paiement avec carte GIM-UEMOA'),
+    'terminal' => FALSE,
+    'offsite' => TRUE,
+    'offsite_autoredirect' => FALSE,
+    'buttonsource' => 'CommerceGuys_Cart_GIM',
+  );
+
+  return $payment_methods;
+}
+
+//definir  les paramètres par défaut a renvoyer pour le mode de paiement commerceGIMUEMOA
+function commercegimuemoa_default_settings() {
+  $default_currency = commerce_default_currency();
+  return array(
+    'siteid' => '',
+    'idmarchand' => '',
+    'number' => '',
+    'date_expiration' => '',
+    'username' => '',
+    'cvv2' => '',
+    'code' => TRUE,
+    'card_types' => drupal_map_assoc(array('ecobank', 'bislamique', 'batlantique', 'gim')),
+    'txn_type' => COMMERCE_CREDIT_AUTH_CAPTURE,
+    'server' => 'gim',
+  );
+}
+
+function commercegimuemoa_settings_form($settings = array()) {
+  $form = array();
+
+  // Fusionner les paramètres par défaut dans le tableau des paramètres stockés 
+  $settings = (array) $settings + commercegimuemoa_default_settings();
+
+  $form['siteid'] = array(
+    '#type' => 'textfield',
+    '#title' => t('ID Site'),
+    '#description' => t('Identifiant du site .'),
+    //   '#default_value' => $settings['siteid'],
+    '#required' => TRUE,
+  );
+  $form['idmarchand'] = array(
+    '#type' => 'textfield',
+    '#title' => t('ID Marchant'),
+    '#description' => t('Identifiant du marchand.'),
+    //  '#default_value' => $settings['idmarchand'],
+    '#required' => TRUE,
+  );
+  $options = array('TEST' => 'TEST', 'PRODUCTION' => 'PRODUCTION');
+  $form['mode'] = array(
+    '#type' => 'select',
+    '#options' => $options,
+    '#title' => t('mode'),
+    '#default_value' => $options['TEST'],
+    '#required' => TRUE,
+  );
+  $form['server'] = array(
+    '#type' => 'radios',
+    '#title' => t('GIM server'),
+    '#options' => array(
+      'gim' => ('GIM-UEMOA '),
+    // 'paypal' => ('Paypal'),
+    ),
+    '#default_value' => $settings['server'],
+  );
+  $form['code'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Require the card security code (i.e. CVV) to process credit card transactions.'),
+    '#description' => t('This should match the similar setting in your PayPal account.'),
+    '#default_value' => $settings['code'],
+  );
+
+  $form['valider'] = array(
+    '#type' => 'submit',
+    '#value' => t('valider'),
+    '#submit' => array('commercegimuemoa_settings_form_submit'),
+  );
+
+  return $form;
+}
+
+function commercegimuemoa_settings_form_submit($valider,$sid, $idmarchand,$mode){
+if(isset($_POST["valider"])){
+// première étape : désactiver le cache lors de la phase de test
+ini_set("soap.wsdl_cache_enabled", "0");
+// lier le client au fichier WSDL
+$clientSOAP = new SoapClient('C:\wamp\www\drupalcommerce\sites\all\modules\custom/gimonline_mpi.wsdl');
+//ON RECUPERE LES PARAMETRES ENVOYES PAR LE FORMULAIRE ET ON Y AJOUTE LES AUTRES PARAMETRES
+//NECESSAIRES AU BON FONCTIONNEMENT DU WEB SERVICE
+$gol_site_id=$_POST['siteid'];
+$gol_amount="";
+$gol_currency="";
+$gol_NumerosPanier="";
+$gol_ctx_mode=$_POST['mode'];
+$gol_page_action="CERTIFICAT";
+$gol_trans_date="";
+$gol_Signature="";
+$idmarchand=$_POST['idmarchand'];
+// executer la methode getMPIFunction pour récupérer le certificat
+// généré par GIMUEMOA et on stocke le certificat dans une table coté client
+// afin de rendre ce certificat permanent
+$certificat=$clientSOAP->getMPIFunction($gol_site_id,$gol_ctx_mode,$gol_page_action);
+//$pass_phrase= "TEST"."PAYMENT"."".$panier.$amount.$site_id."XOF".$reponse;f§
+// SI LE CERTIFICAT EST RENVOYE ON L'ENREGISTRE DANS UNE TABLE COTE CLIENT
+//SINON ON AFFICHE LE MESSAGE D'ERREUR SELON LE CODE D'ERREUR RECUPERE
+if ($certificat !="5900"){
+	include_once("concli.inc.php");
+	$reqins=$connexion->prepare('INSERT INTO marchand(certificat,idmarchand,siteid)VALUES(:certificat,:idmarchand,:siteid)');
+	$reqins->execute(array(
+	                        'certificat'=>$certificat,
+							'idmarchand'=>$idmarchand,
+							'siteid'=>$gol_site_id
+	                      )
+	                );
+	header('location:shipping.php');
+}
+else{
+	$erreur="Veuillez revoir votre identifiant de site";
+}
+return $certificate;
+}
+
+}
+
+//Implements hook_form_FORM_ID_alter()
+function commercegimuemoa_form_commerce_checkout_form_alter(&$form, &$form_state) {
+  // Si cette forme de paiement contient la méthode de paiement radios ...
+  if (!empty($form['commerce_payment']['payment_method']['#options'])) {
+    // Boucle sur son tableau d'options à la recherche d' une option COMMERCE_GIM-UEMOA
+    foreach ($form['commerce_payment']['payment_method']['#options'] as $key => &$value) {
+      list($method_id, $rule_name) = explode('|', $key);
+
+      // Si nous sommes sur l'option COMMERCE_GIM-UEMOA
+      if ($method_id == 'commercegimuemoa') {
+        // Préparer le texte de remplacement de bouton radio avec des icônes 
+        $icons = commercegimuemoa_icons();
+        $value = t('!logo GIM-UEMOA - payer en toute sécurité sans partager vos informations financières', array('!logo' => $icons['gim']));
+        $value .= '<div class="commercegimuemoa-icons"><span class="label">' . t('Includes:') . '</span>' . implode(' ', $icons) . '</div>';
+        // Add the CSS.
+        $form['commerce_payment']['payment_method']['#attached']['css'][] = drupal_get_path('module', 'commercegimuemoa') . '/theme/commercegimuemoa.theme.css';
+
+        break;
+      }
+    }
+  }
+}
+// redirection vers la plateforme de paiement
+function commercegimuemoa_redirect_form($form, &$form_state, $order, $payment_method) {
+  //verifier la configuration
+  if (empty($payment_method['settings'][siteid]) && empty($payment_method['settings'][idmarchand])) {
+//    // Retour une erreur si le module n'était pas configuré .
+    drupal_set_message(t('le moduele n est pas encore configuré.'), 'error');
+    return array();
+  }
+  $settings = array(
+    // Retourner a la page precedent si le paiement est annulé
+    'cancel_return' => url('checkout/' . $order->order_id . '/payment/back/' . $order->data['payment_redirect_key'], array('absolute' => TRUE)),
+    // Retour à la page de redirection de paiement si le traitement des paiements réussis
+    'return' => url('checkout/' . $order->order_id . '/payment/return/' . $order->data['payment_redirect_key'], array('absolute' => TRUE)),
+    // Indiquez le mode de paiement par exemple ID courant dans le notify_url
+    'payment_method' => $payment_method['instance_id'],
+    // Inclure l'indicateur d'application
+    'bn' => $payment_method['buttonsource'],
+  );
+
+  return commercegimuemoa_order_form($form, $form_state, $order, $payment_method['settings'] + $settings);
+
+//return commercegimuemoa_trans_form($form, $form_state, $order, $payment_method['settings'] + $settings);
+}
+
+function commercegimuemoa_redirect_form_validate($form, &$form_state, $order, $payment_method) {
+
+  if (!empty($payment_method['settings']['ipn_logging']) &&
+      $payment_method['settings']['ipn_logging'] == 'full_ipn') {
+    watchdog('commercegimuemoa', 'Customer returned from PayPal with the following POST data:!ipn_data', array('!ipn_data' => '<pre>' . check_plain(print_r($_POST, TRUE)) . '</pre>'), WATCHDOG_NOTICE);
+  }
+  // This may be an unnecessary step, but if for some reason the user does end
+  // up returning at the success URL with a Failed payment, go back.
+  if (!empty($_POST['payment_status']) && $_POST['payment_status'] == 'Failed') {
+    return FALSE;
+  }
+}
+
+function commercegimuemoa_submit_form($payment_method, $pane_values, $checkout_pane, $order) {
+  module_load_include('inc', 'commercegimuemoa', 'includes/commercegimuemoa.bank_card');
+  $payment_method['settings'] += commercegimuemoa_default_settings();
+  // Préparer les champs à inclure sur le formulaire de la carte 
+  $fields = array();
+  // Inclure le champ de code de sécurité de la carte si spécifié.
+  if ($payment_method['settings']['code']) {
+    $fields['code'] = '';
+  }
+  // Ajouter le tableau des types de carte de crédit si nécessaire.
+  $card_types = array_diff(array_values($payment_method['settings']['card_types']), array(0));
+  if (!empty($card_types)) {
+    $fields['type'] = $card_types;
+  }
+  return commercegimuemoa_bank_card_form($fields);
+}
+
+function commercegimuemoa_submit_form_validate($payment_method, $pane_form, $pane_values, $order, $form_parents = array()) {
+  module_load_include('inc', 'commercegimuemoa', 'includes/commercegimuemoa.bank_card');
+
+  // Valider les champs de carte de crédit.
+  $settings = array(
+    'form_parents' => array_merge($form_parents, array('bank_card')),
+  );
+  if (!commercegimuemoa_bank_card_validate($pane_values['bank_card'], $settings)) {
+    return FALSE;
+  }
+}
+
+//les differents types de cartes de GIM
+function commercegimuemoa_card_type($card_type) {
+  switch ($card_type) {
+    case 'ecobank':
+      return 'ecobank';
+    case 'bislamique':
+      return 'bislamique';
+    case 'batlantique':
+      return 'batlantique';
+  }
+}
+
+/**
+ * Mode de paiement callback: traiter une IP N fois qu'il a été validé.
+ */
+function commercegimuemoa_ipn_process($order, $payment_method, &$ipn) {
+  // Do not perform any processing on WPS transactions here that do not have
+  // transaction IDs, indicating they are non-payment IPNs such as those used
+  // for subscription signup requests.
+  if (empty($ipn['txn_id'])) {
+    return FALSE;
+  }
+  // Quitter lorsque nous ne recevons pas un statut de paiement, nous reconnaissons.
+  if (!in_array($ipn['payment_status'], array('Failed', 'Voided', 'Pending', 'Completed', 'Refunded'))) {
+    commerce_payment_redirect_pane_previous_page($order);
+    return FALSE;
+  }
+  // If this is a prior authorization capture IPN for which we've already
+  // created a transaction...
+  if (in_array($ipn['payment_status'], array('Voided', 'Completed')) &&
+      !empty($ipn['auth_id']) && $auth_ipn = commercegimuemoa_ipn_load($ipn['auth_id'])) {
+    // Load the prior IPN's transaction and update that with the capture values.
+    $transaction = commercegimuemoa_transaction_load($auth_ipn['transaction_id']);
+  }
+  else {
+    // Create a new payment transaction for the order.
+    $transaction = commercegimuemoa_transaction_new('commercegimuemoa', $order->order_id);
+    $transaction->instance_id = $payment_method['instance_id'];
+  }
+  $transaction->remote_id = $ipn['txn_id'];
+  $transaction->amount = commerce_currency_decimal_to_amount($ipn['mc_gross'], $ipn['mc_currency']);
+  $transaction->currency_code = $ipn['mc_currency'];
+  $transaction->payload[REQUEST_TIME . '-ipn'] = $ipn;
+
+  // Set the transaction's statuses based on the IPN's payment_status.
+  $transaction->remote_status = $ipn['payment_status'];
+
+  // If we didn't get an approval response code...
+  switch ($ipn['payment_status']) {
+    case 'Failed':
+      $transaction->status = COMMERCE_PAYMENT_STATUS_FAILURE;
+      $transaction->message = t("The payment has failed. This happens only if the payment was made from your customer’s bank account.");
+      break;
+
+    case 'Voided':
+      $transaction->status = COMMERCE_PAYMENT_STATUS_FAILURE;
+      $transaction->message = t('Lautorisation a été annulée.');
+      break;
+
+    case 'Pending':
+      $transaction->status = COMMERCE_PAYMENT_STATUS_PENDING;
+      $transaction->message = commerce_paypal_ipn_pending_reason($ipn['pending_reason']);
+      break;
+
+    case 'Completed':
+      $transaction->status = COMMERCE_PAYMENT_STATUS_SUCCESS;
+      $transaction->message = t('The payment has completed.');
+      break;
+
+    case 'Refunded':
+      $transaction->status = COMMERCE_PAYMENT_STATUS_SUCCESS;
+      $transaction->message = t('Refund for transaction @txn_id', array('@txn_id' => $ipn['parent_txn_id']));
+      break;
+  }
+
+  // Enregistrer les informations de transaction.
+  commerce_payment_transaction_save($transaction);
+  $ipn['transaction_id'] = $transaction->transaction_id;
+
+  // Create a billing profile based on the IPN if enabled.
+  if (!empty($payment_method['settings']['ipn_create_billing_profile']) && isset($order->commerce_customer_billing)) {
+    $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+
+    // If this order does not have a billing profile yet...
+    if ($order_wrapper->commerce_customer_billing->value() === NULL) {
+      // Ensure we have the required data in the IPN.
+      if (empty($ipn['residence_country']) || empty($ipn['first_name']) || empty($ipn['last_name'])) {
+        $data = array_intersect_key($ipn, drupal_map_assoc(array('residence_country', 'first_name', 'last_name')));
+        watchdog('commercegimuemoa', 'A billing profile for Order @order_number could not be created due to insufficient data in the IPN:!data', array('@order_number' => $order->order_number, '!data' => '<pre>' . check_plain(print_r($data, TRUE)) . '</pre>'), WATCHDOG_WARNING);
+      }
+      else {
+        // Create the new profile now.
+        $profile = commerce_customer_profile_new('billing', $order->uid);
+
+        // Add the address value.
+        $profile_wrapper = entity_metadata_wrapper('commerce_customer_profile', $profile);
+
+        // Prepare an addressfield array to set to the customer profile.
+        $field = field_info_field('commerce_customer_address');
+        $instance = field_info_instance('commerce_customer_profile', 'commerce_customer_address', 'billing');
+        $address = addressfield_default_values($field, $instance);
+
+        $profile_wrapper->commerce_customer_address = array_merge($address, array(
+          'country' => $ipn['residence_country'],
+          'name_line' => $ipn['first_name'] . ' ' . $ipn['last_name'],
+          'first_name' => $ipn['first_name'],
+          'last_name' => $ipn['last_name'],
+        ));
+
+        // Save the profile, reference it from the order, and save the order.
+        $profile_wrapper->save();
+        $order_wrapper->commerce_customer_billing = $profile_wrapper;
+        $order_wrapper->save();
+
+        watchdog('commercegimuemoa', 'Billing profile created for Order @order_number containing the first and last names and residence country of the customer based on IPN data.', array('@order_number' => $order->order_number));
+      }
+    }
+  }
+
+  commerce_payment_redirect_pane_next_page($order);
+  watchdog('commercegimuemoa', 'IPN processed for Order @order_number with ID @txn_id.', array('@txn_id' => $ipn['txn_id'], '@order_number' => $order->order_number), WATCHDOG_INFO);
+}
+
+//les differentes carte GIM
+function commercegimuemoa_payment_methods() {
+  return array(
+    'bhs' => t('BHS'),
+    'boa' => t('BOA'),
+    'ecobank' => t('Ecobank'),
+    'orabank' => t('B Islamique'),
+    'gim' => t('GIM'),
+  );
+}
+
+//changer l'icon de GIM
+function commercegimuemoa_icons($methods = array()) {
+  $icons = array();
+
+  foreach (commercegimuemoa_payment_methods() as $name => $title) {
+    if (empty($methods) || in_array($name, $methods, TRUE)) {
+      $variables = array(
+        'path' => drupal_get_path('module', 'commercegimuemoa') . '/images/' . $name . '.gif',
+        'title' => $title,
+        'alt' => $title,
+        'attributes' => array(
+          'class' => array('commercegimuemoa-icon'),
+        ),
+      );
+      $icons[$name] = theme('image', $variables);
+    }
+  }
+
+  return $icons;
+}
+
+//le formulaire de paiement
+$nvp = NULL;
+
+function commercegimuemoa_trans_validate($form, &$form_state) {
+  if (!empty($number_cart) && is_numeric($number_cart) && !empty($expiration_date) && !empty($first_lastname) && !empty($CVV2)) {
+    //if(!empty($number_cart)&&  is_numeric($number_cart)){
+    form_set_error('number_cart', t('veuillez renseigner tous les champs'));
+  }
+  else {
+
+    //drupal_form_error('commercegimuemoa_trans_form','veuillez renseigner tous les champs');
+
+    form_set_error('number_cart', t('le numero de la carte doit etre de type number'));
+
+
+    // return commercegimuemoa_trans_validate($form, $form_state);
+  }
+}
+
+function drupal_form_error(&$element, $message = '') {
+  form_set_error(implode('][', $element['#parents']), $message);
+}
+
+function commercegimuemoa_trans_submit($form, &$form_state) {
+  $number_cart = $form_state['values']['number_carte'];
+  $expiration_date = $form_state['values']['expiration_date'];
+  //$first_lastname = $form_state['values']['first_lastname'];
+  $CVV2 = $form_state['values']['CVV2'];
+  $infoclient = array(
+    'numcarte' => $number_cart,
+    'dateexpir' => $expiration_date,
+    'cvv' => $CVV2,
+  );
+  return $infoclient;
+}
+
+function commercegimuemoa_order_form($form, &$form_state, $order, $settings) {
+  $wrapper = entity_metadata_wrapper('commerce_order', $order);
+  // Ensure a default value for the payment_method setting.
+  $settings += array('payment_method' => '',
+  );
+  dsm($settings);
+  dsm($settings[siteid]);
+  dsm($settings[siteid]);
+  dsm($settings[mode]);
+  // Build the data array that will be translated into hidden form values.
+  $data = array(
+    // Specify the checkout experience to present to the user.
+    'cmd' => '_cart',
+    // Signify we're passing in a shopping cart from our system.
+    'upload' => 1,
+    // The store's PayPal e-mail address
+    // 'business' => $settings['business'],
+    // The path PayPal should send the IPN to
+    'notify_url' => commercegimuemoa_ipn_url($settings['payment_method']),
+    // The application generating the API request
+    'bn' => 'CommerceGuys_Cart_GIM',
+    // Set the correct character set
+    'charset' => 'utf-8',
+    // Do not display a comments prompt at PayPal
+    'no_note' => 1,
+    // Do not display a shipping address prompt at PayPal
+    'no_shipping' => 1,
+    // Return to the review page when payment is canceled
+    'cancel_return' => $settings['cancel_return'],
+    // Return to the payment redirect page for processing successful payments
+    'return' => $settings['return'],
+    // Return to this site with payment data in the POST
+    'rm' => 2,
+    // Use the timestamp to generate a unique invoice number
+    'invoice' => commercegimuemoa_ipn_invoice($order),
+    // Define a single item in the cart representing the whole order
+    //  'amount_1' => commercegimuemoa_price_amount(commerce_currency_convert($amount, $order_currency_code, $currency_code), $currency_code),
+    'item_name_1' => t('Order @order_number at @store', array('@order_number' => $order->order_number, '@store' => variable_get('site_name', url('<front>', array('absolute' => TRUE))))),
+    'on0_1' => t('Product count'),
+    'os0_1' => commerce_line_items_quantity($wrapper->commerce_line_items, commerce_product_line_item_types()),
+  );
+
+  // Allow modules to alter parameters of the API request.
+  drupal_alter('commercegimuemoa_order_form_data', $data, $order);
+
+  $form['#action'] = commercegimuemoa_server_url($settings['server']);
+  foreach ($data as $name => $value) {
+
+    if (!empty($value)) {
+
+      $form[$name] = array('#type' => 'hidden', '#value' => $value);
+    }
+  }
+  $userprofileId = $order->commerce_customer_billing['und'][0]['profile_id'];
+  $getuserInfos = commerce_customer_profile_load($userprofileId);
+
+  $userName = $getuserInfos->commerce_customer_address['und'][0]['first_name'];
+  $userLastName = $getuserInfos->commerce_customer_address['und'][0]['last_name'];
+  $firstLastName = $userName . '' . $userLastName;
+
+  $form['ACCT'] = array('#type' => 'hidden', '#value' => $nvp['values']['ACCT']);
+  $form['EXPDATE'] = array('#type' => 'hidden', '#value' => $nvp['values']['EXPDATE']);
+  $form['CVV2'] = array('#type' => 'hidden', '#value' => $nvp['values']['CVV2']);
+  $form['NOMPORTEUR'] = array('#type' => 'hidden', '#value' => $nvp['values']['NOMPORTEUR']);
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Proceed to GIM'),
+  );
+
+  return $form;
+}
+
+function commercegimuemoa_submit_form_submit($payment_method, $pane_form, $pane_values, $order, $charge) {
+  // Build a name-value pair array for this transaction.
+  $userprofileId = $order->commerce_customer_billing['und'][0]['profile_id'];
+  $getuserInfos = commerce_customer_profile_load($userprofileId);
+
+  $userName = $getuserInfos->commerce_customer_address['und'][0]['first_name'];
+  $userLastName = $getuserInfos->commerce_customer_address['und'][0]['last_name'];
+  $firstLastName = $userName . ' ' . $userLastName;
+  //dsm($firstLastName
+
+  $numCarte = $pane_values['bank_card']['number'];
+  $dateExp = $pane_values['bank_card']['exp_month'] . $pane_values['bank_card']['exp_year'];
+  $numCarte = $pane_values['bank_card']['number'];
+  $nvp = array(
+    'METHOD' => 'commercegimuemoa',
+    //'PAYMENTACTION' => commercegimuemoa_payment_action($payment_method['settings']['txn_type']),
+    'NOTIFYURL' => commercegimuemoa_ipn_url($payment_method['instance_id']),
+    'BUTTONSOURCE' => $payment_method['buttonsource'],
+    'CREDITCARDTYPE' => commercegimuemoa_card_type($pane_values['bank_card']['type']),
+    'ACCT' => $pane_values['bank_card']['number'],
+    'EXPDATE' => $pane_values['bank_card']['exp_month'] . $pane_values['bank_card']['exp_year'],
+    //'AMT' => commercegimuemoa_price_amount($amount, $currency_code),
+    //'CURRENCYCODE' => $currency_code,
+    'NOMPORTEUR' => $firstLastName,
+    'CVV2' => $pane_values['bank_card']['code'],
+  );
+  // Add the CVV if entered on the form.
+  if (isset($pane_values['bank_card']['code'])) {
+    $nvp['CVV2'] = $pane_values['bank_card']['code'];
+  }
+  // Build a description for the order.
+  $description = array();
+  // Add additional transaction invormation to the request array.
+  $nvp += array(
+    // Order Information; we append the timestamp to the order number to allow
+    // for multiple transactions against the same order.
+    'INVNUM' => substr($order->order_number, 0, 127) . '-' . REQUEST_TIME,
+    'CUSTOM' => substr(t('Order @number', array('@number' => $order->order_number)), 0, 256),
+    'DESC' => substr(implode(', ', $description), 0, 127),
+    // Customer Information
+    'EMAIL' => substr($order->mail, 0, 127),
+  );
+  // Submit the request to PayPal.
+  $response = commercegimuemoa_api_request($payment_method, $nvp, $order);
+
+  // Prepare a transaction object to log the API response.
+  $transaction = commerce_payment_transaction_new('commercegimuemoa', $order->order_id);
+  $transaction->instance_id = $payment_method['instance_id'];
+
+  $transaction->payload[REQUEST_TIME] = $response;
+
+  // Build a meaningful response message.
+  $message = array();
+  // Store the type of transaction in the remote status.
+  //$transaction->remote_status = $nvp['PAYMENTACTION'];
+  dsm($nvp);
+  // Set the final message.
+  $transaction->message = implode('<br />', $message);
+
+  // Save the transaction information.
+  commerce_payment_transaction_save($transaction);
+}
+
+function commercegimuemoa_server_url($server) {
+  switch ($server) {
+    case 'gim':
+      return 'http://127.0.0.1/gimonline/server/payment.php';
+    case 'paypal':
+      return 'https://www.paypal.com/cgi-bin/webscr';
+  }
+}
+
+function commercegimuemoa_api_server_url($server) {
+  switch ($server) {
+    case 'gim':
+      return 'http://127.0.0.1/gimonline/server/payment.php';
+    case 'paypal':
+      return 'https://www.paypal.com/cgi-bin/webscr';
+  }
+}
+
+function commercegimuemoa_ipn_url($instance_id = NULL) {
+  $parts = array(
+    'commercegimuemoa',
+    'ipn',
+  );
+
+  if (!empty($instance_id)) {
+    $parts[] = $instance_id;
+  }
+
+  return url(implode('/', $parts), array('absolute' => TRUE));
+}
+
+function commercegimuemoa_ipn_invoice($order) {
+  return $order->order_id . '-' . REQUEST_TIME;
+}
+
+function commercegimuemoa_price_amount($amount, $currency_code) {
+  $rounded_amount = commerce_currency_round($amount, commerce_currency_load($currency_code));
+  return number_format(commerce_currency_amount_to_decimal($rounded_amount, $currency_code), 2, '.', '');
+}
+
+function commercegimuemoa_payment_action($txn_type) {
+  switch ($txn_type) {
+    case COMMERCE_CREDIT_AUTH_ONLY:
+      return 'Authorization';
+    case COMMERCE_CREDIT_AUTH_CAPTURE:
+      return 'Sale';
+  }
+}
+
+/**
+ * Returns the description of a transaction type for a PayPal payment action.
+ */
+function commercegimuemoa_reverse_payment_action($payment_action) {
+  switch (strtoupper($payment_action)) {
+    case 'AUTHORIZATION':
+      return t('Authorization only');
+    case 'SALE':
+      return t('Authorization and capture');
+  }
+}
+
+function commercegimuemoa_api_request($payment_method, $nvp = array(), $order = NULL) {
+  // Get the API endpoint URL for the payment method's transaction mode.
+  $url = commercegimuemoa_api_server_url($payment_method['settings']['server']);
+  // Add the default name-value pairs to the array.
+  $nvp += array(
+  );
+  // Allow modules to alter parameters of the API request.
+  drupal_alter('commercegimuemoa_api_request', $nvp, $order, $payment_method);
+  // Prepare the name-value pair array to be sent as a string.
+  $pairs = array();
+
+  foreach ($nvp as $key => $value) {
+    $pairs[] = $key . '=' . urlencode($value);
+  }
+
+  // Setup the cURL request.
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $url);
+  curl_setopt($ch, CURLOPT_VERBOSE, 0);
+  curl_setopt($ch, CURLOPT_POST, 1);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, implode('&', $pairs));
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($ch, CURLOPT_NOPROGRESS, 1);
+  curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1);
+
+  if (variable_get('commercegimuemoa_cacert', FALSE)) {
+    curl_setopt($ch, CURLOPT_CAINFO, variable_get('commercegimuemoa_cacert', ''));
+  }
+
+  $result = curl_exec($ch);
+
+  // Log any errors to the watchdog.
+  if ($error = curl_error($ch)) {
+    watchdog('commercegimuemoa', 'cURL error: @error', array('@error' => $error), WATCHDOG_ERROR);
+    return FALSE;
+  }
+  curl_close($ch);
+
+  // Make the response an array.
+  $response = array();
+
+  foreach (explode('&', $result) as $nvp) {
+    list($key, $value) = explode('=', $nvp);
+    $response[urldecode($key)] = urldecode($value);
+  }
+  return $response;
+}

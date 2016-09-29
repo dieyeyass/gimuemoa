@@ -1,0 +1,23 @@
+
+/**
+ * @file
+ * Basic styling for the Commerce Payment module.
+ */
+
+/**
+ * Add styles to credit card form elements.
+ */
+.commerce-bank-card-start,
+.commerce-bank-card-expiration {
+  margin-bottom: 1em;
+}
+
+.commerce-bank-card-start .form-item,
+.commerce-bank-card-expiration .form-item {
+  display: inline;
+  margin-bottom: 1em;
+}
+
+.commerce-month-year-divider {
+  margin: 0 3px;
+}
